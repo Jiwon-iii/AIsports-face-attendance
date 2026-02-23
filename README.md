@@ -12,11 +12,16 @@
 ## 2. 현재 범위 (MVP Stage-1)
 
 - `홈`: 기능 진입 허브
-- `등록(/register)`: 사용자 정보/동의/얼굴 샘플 등록 UI 뼈대
-- `체크인(/checkin)`: 카메라 인증 UI 뼈대
-- `관리(/admin)`: 출석 로그 확인 UI 뼈대
+- `등록(/register)`: 사용자/동의 등록 UI
+- `체크인(/checkin)`: 카메라 인증 UI
+- `관리(/admin)`: 출석 로그 확인 UI
+- API 기본 구현:
+  - `POST /api/users`
+  - `POST /api/consents`
+  - `POST /api/attendance`
+  - `GET /api/attendance`
 
-현재는 화면 구조 중심이며, API/DB/실제 얼굴 매칭은 다음 단계에서 연결합니다.
+실제 얼굴 매칭 엔진 연결과 운영용 인증/인가는 다음 단계입니다.
 
 ## 3. 기술 스택
 
@@ -24,7 +29,8 @@
 - TypeScript
 - Tailwind CSS v4
 - ESLint
-- MongoDB (예정)
+- MongoDB + Mongoose
+- Zod (API 입력 검증)
 
 ## 4. 데이터 모델 초안 (MongoDB)
 
@@ -62,17 +68,31 @@
 - `src/app/register/page.tsx`
 - `src/app/checkin/page.tsx`
 - `src/app/admin/page.tsx`
+- `src/app/api/users/route.ts`
+- `src/app/api/consents/route.ts`
+- `src/app/api/attendance/route.ts`
 
-## 6. 개발 로드맵
+## 6. 환경 변수
 
-1. MongoDB 연결 및 모델 정의
-2. 등록 API 구현 (`/api/users`, `/api/face/register`, `/api/consent`)
-3. 체크인 API 구현 (`/api/attendance/verify`)
-4. 관리자 로그 API (`/api/attendance/logs`)
-5. liveness(눈깜빡임/헤드턴) 최소 구현
-6. 예외 처리(수동 출석, 재시도) 및 운영 로그 강화
+`.env.local` 파일을 만들고 아래 값을 설정합니다.
 
-## 7. 실행 방법
+```bash
+MONGODB_URI=mongodb://localhost:27017
+MONGODB_DB_NAME=ai_face_attendance
+```
+
+샘플은 `.env.example` 파일을 참고합니다.
+
+## 7. 개발 로드맵
+
+1. `/register`, `/admin` 화면에 실제 API 연동
+2. `faceProfiles` 등록 API 구현 (`/api/face-profiles`)
+3. 체크인 매칭 로직 + 임계값 설정 컬렉션 도입
+4. liveness(눈깜빡임/헤드턴) 최소 구현
+5. 인증/인가(관리자 권한) 추가
+6. 운영 로그/모니터링 지표 강화
+
+## 8. 실행 방법
 
 ```bash
 npm install
@@ -81,7 +101,7 @@ npm run dev
 
 브라우저에서 `http://localhost:3000` 접속 후 각 라우트로 이동합니다.
 
-## 8. 포트폴리오 관점 포인트
+## 9. 포트폴리오 관점 포인트
 
 - 문제정의: 대회/현장 환경의 빠른 출석 인증
 - 설계: 등록-인증-운영의 E2E 흐름
