@@ -1,11 +1,5 @@
 import mongoose from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI is not set.");
-}
-
 type MongooseCache = {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
@@ -21,13 +15,21 @@ if (!global.mongooseCache) {
   global.mongooseCache = cache;
 }
 
+function getMongoUri(): string {
+  const mongodbUri = process.env.MONGODB_URI;
+  if (!mongodbUri) {
+    throw new Error("MONGODB_URI is not set.");
+  }
+  return mongodbUri;
+}
+
 export async function connectToDatabase(): Promise<typeof mongoose> {
   if (cache.conn) {
     return cache.conn;
   }
 
   if (!cache.promise) {
-    cache.promise = mongoose.connect(MONGODB_URI, {
+    cache.promise = mongoose.connect(getMongoUri(), {
       dbName: process.env.MONGODB_DB_NAME || "ai_face_attendance",
     });
   }

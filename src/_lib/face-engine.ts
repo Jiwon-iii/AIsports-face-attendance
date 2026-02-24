@@ -27,8 +27,8 @@ type RecognitionApiResult = {
 
 const DEFAULT_RECOGNITION_LIMIT = 1;
 const DEFAULT_PREDICTION_COUNT = 2;
-const DEFAULT_MATCH_THRESHOLD = 0.9;
-const DEFAULT_MATCH_MARGIN = 0.08;
+const DEFAULT_MATCH_THRESHOLD = 0.95;
+const DEFAULT_MATCH_MARGIN = 0.02;
 
 let recognitionServiceCache: ReturnType<CompreFace["initFaceRecognitionService"]> | null = null;
 
@@ -48,9 +48,10 @@ function dataUrlToBase64(dataUrl: string): string {
   return match[1];
 }
 
-function dataUrlToBytes(dataUrl: string): Uint8Array {
+function dataUrlToArrayBuffer(dataUrl: string): ArrayBuffer {
   const base64 = dataUrlToBase64(dataUrl);
-  return Uint8Array.from(Buffer.from(base64, "base64"));
+  const bytes = Buffer.from(base64, "base64");
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
 }
 
 function getCompreFaceBaseUrl() {
@@ -105,8 +106,8 @@ export async function registerFaceSamplesToEngine(
 
   for (let i = 0; i < samples.length; i += 1) {
     const sample = samples[i];
-    const bytes = dataUrlToBytes(sample.imageDataUrl);
-    const blob = new Blob([bytes], { type: "image/jpeg" });
+    const arrayBuffer = dataUrlToArrayBuffer(sample.imageDataUrl);
+    const blob = new Blob([arrayBuffer], { type: "image/jpeg" });
     const formData = new FormData();
     formData.append("file", blob, `sample-${i + 1}.jpg`);
 

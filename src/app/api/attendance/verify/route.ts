@@ -31,7 +31,43 @@ export async function POST(request: Request) {
 
     const threshold = getFaceMatchThreshold();
     const margin = getFaceMatchMargin();
-    const recognizeResult = await recognizeFaceFromImage(parsed.data.imageDataUrl);
+    const buildFailedResponse = (input: {
+      predictedUserId: string | null;
+      userName: string | null;
+      matchedScore: number | null;
+      secondMatchedScore: number | null;
+      hasFace: boolean;
+    }) =>
+      jsonSuccess({
+        id: null,
+        userId: input.predictedUserId,
+        userName: input.userName,
+        status: "FAILED" as const,
+        checkType: parsed.data.checkType,
+        matchedScore: input.matchedScore,
+        secondMatchedScore: input.secondMatchedScore,
+        predictedUserId: input.predictedUserId,
+        threshold,
+        margin,
+        hasFace: input.hasFace,
+        capturedAt: new Date().toISOString(),
+        recordSaved: false,
+      });
+
+    let recognizeResult;
+    try {
+      recognizeResult = await recognizeFaceFromImage(parsed.data.imageDataUrl);
+    } catch (error) {
+      console.error("[POST /api/attendance/verify][recognize]", error);
+      return buildFailedResponse({
+        predictedUserId: null,
+        userName: null,
+        matchedScore: null,
+        secondMatchedScore: null,
+        hasFace: false,
+      });
+    }
+
     const predictedUserId = recognizeResult.topCandidate?.subject ?? null;
     const matchedScore = recognizeResult.topCandidate?.similarity ?? null;
     const secondMatchedScore = recognizeResult.secondCandidate?.similarity ?? null;
@@ -54,20 +90,12 @@ export async function POST(request: Request) {
       isExpectedUserMatched;
 
     if (!isMatched) {
-      return jsonSuccess({
-        id: null,
-        userId: predictedUserId,
+      return buildFailedResponse({
+        predictedUserId,
         userName,
-        status: "FAILED" as const,
-        checkType: parsed.data.checkType,
         matchedScore,
         secondMatchedScore,
-        predictedUserId,
-        threshold,
-        margin,
         hasFace: recognizeResult.hasFace,
-        capturedAt: new Date().toISOString(),
-        recordSaved: false,
       });
     }
 

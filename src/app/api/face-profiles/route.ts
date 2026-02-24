@@ -18,7 +18,7 @@ const createFaceProfileSchema = z.object({
       }),
     )
     .min(1)
-    .max(1),
+    .max(3),
 });
 
 export async function POST(request: Request) {

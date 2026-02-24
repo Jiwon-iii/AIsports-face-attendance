@@ -8,22 +8,26 @@ import { useAttendanceVerify } from "@/_hooks/use-attendance-verify";
 const VERIFY_INTERVAL_GUARD_MS = 1200;
 const SUCCESS_COOLDOWN_MS = 5000;
 const REQUIRED_CONSECUTIVE_MATCHES = 2;
+const MATCH_WINDOW_MS = 8000;
 
 export function CheckinContainer() {
+  const [isKioskDevice, setIsKioskDevice] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const inFlightRef = useRef(false);
   const lastAttemptAtRef = useRef(0);
   const coolDownUntilRef = useRef(0);
-  const consecutiveUserIdRef = useRef<string | null>(null);
-  const consecutiveMatchCountRef = useRef(0);
+  const matchHistoryRef = useRef<Array<{ userId: string; at: number }>>([]);
 
   const { data: verifyData, error: verifyError, verify } = useAttendanceVerify();
   const activeError = localError || verifyError;
   const statusMessage = successMessage
     ? successMessage
+    : pendingMessage
+      ? pendingMessage
     : activeError
       ? activeError
       : isProcessing
@@ -33,11 +37,35 @@ export function CheckinContainer() {
           : null;
   const statusTone: "loading" | "success" | "error" | "warning" = successMessage
     ? "success"
+    : pendingMessage
+      ? "loading"
     : activeError
       ? "error"
       : isProcessing
         ? "loading"
         : "warning";
+
+  useEffect(() => {
+    const mobileQuery = window.matchMedia("(max-width: 767px)");
+    const touchQuery = window.matchMedia("(pointer: coarse)");
+
+    const syncViewport = () => {
+      const ua = navigator.userAgent;
+      const isMobileOrTabletUa = /iPhone|iPad|iPod|Android/i.test(ua);
+      const isIpadOs = /Macintosh/i.test(ua) && navigator.maxTouchPoints > 1;
+      const shouldUseKiosk = mobileQuery.matches || touchQuery.matches || isMobileOrTabletUa || isIpadOs;
+      setIsKioskDevice(shouldUseKiosk);
+    };
+
+    syncViewport();
+    mobileQuery.addEventListener("change", syncViewport);
+    touchQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mobileQuery.removeEventListener("change", syncViewport);
+      touchQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
 
   useEffect(() => {
     if (!successMessage) {
@@ -50,6 +78,18 @@ export function CheckinContainer() {
 
     return () => window.clearTimeout(timeoutId);
   }, [successMessage]);
+
+  useEffect(() => {
+    if (!pendingMessage) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPendingMessage(null);
+    }, 2500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [pendingMessage]);
 
   const handleFrame = useCallback(
     async (imageDataUrl: string) => {
@@ -77,14 +117,16 @@ export function CheckinContainer() {
         });
 
         if (result.status === "SUCCESS" && result.userId) {
-          if (consecutiveUserIdRef.current === result.userId) {
-            consecutiveMatchCountRef.current += 1;
-          } else {
-            consecutiveUserIdRef.current = result.userId;
-            consecutiveMatchCountRef.current = 1;
-          }
+          const nowAt = Date.now();
+          matchHistoryRef.current = matchHistoryRef.current
+            .filter((item) => nowAt - item.at <= MATCH_WINDOW_MS)
+            .concat({ userId: result.userId, at: nowAt });
 
-          if (consecutiveMatchCountRef.current >= REQUIRED_CONSECUTIVE_MATCHES) {
+          const matchedCount = matchHistoryRef.current.filter(
+            (item) => item.userId === result.userId,
+          ).length;
+
+          if (matchedCount >= REQUIRED_CONSECUTIVE_MATCHES) {
             const saved = await verify({
               imageDataUrl,
               checkType: "IN",
@@ -95,19 +137,21 @@ export function CheckinContainer() {
             if (saved.status === "SUCCESS" && saved.recordSaved) {
               const displayName = saved.userName ?? saved.userId ?? "참가자";
               setSuccessMessage(`${displayName}님 출석 인증되었습니다.`);
+              setPendingMessage(null);
               coolDownUntilRef.current = Date.now() + SUCCESS_COOLDOWN_MS;
-              consecutiveUserIdRef.current = null;
-              consecutiveMatchCountRef.current = 0;
+              matchHistoryRef.current = [];
               return;
             }
           }
 
+          const displayName = result.userName ?? result.userId ?? "참가자";
+          setPendingMessage(`${displayName}님 확인 중... 한 번 더 정면을 바라봐 주세요.`);
           setSuccessMessage(null);
           return;
         }
 
-        consecutiveUserIdRef.current = null;
-        consecutiveMatchCountRef.current = 0;
+        matchHistoryRef.current = [];
+        setPendingMessage(null);
         setSuccessMessage(null);
       } catch (error) {
         if (error instanceof Error) {
@@ -121,31 +165,39 @@ export function CheckinContainer() {
     [verify],
   );
 
+  if (isKioskDevice) {
+    return (
+      <main className="min-h-dvh bg-black">
+        <CheckinCapturePanel
+          onFrame={handleFrame}
+          statusMessage={statusMessage}
+          statusTone={statusTone}
+          compact
+        />
+      </main>
+    );
+  }
+
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 md:px-8">
-      <section className="panel p-5 sm:p-7 md:p-8">
-        <div className="mb-6">
-          <h1 className="mt-2 text-2xl font-bold text-slate-900 sm:text-3xl">AI 얼굴 출석 인증</h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-700 sm:text-base">
-            카메라를 응시하면 자동으로 얼굴을 인식해 출석을 처리합니다.
-          </p>
+    <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-8 sm:px-6 md:px-8">
+      <section className="mb-5 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">ai sport attendance</p>
+            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">대회 출석 인증</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              참가자는 카메라 정면을 바라보면 자동으로 인증됩니다. 현장 운영용 PC 화면입니다.
+            </p>
+          </div>
           <Link
             href="/admin/login"
-            className="ui-btn-ghost mt-3 inline-flex min-h-10 items-center px-4 text-xs"
+            className="inline-flex min-h-10 items-center rounded-full border border-slate-900 bg-slate-900 px-4 text-sm font-semibold text-white transition hover:bg-black"
           >
-            관리자 페이지
+            관리자 이동
           </Link>
         </div>
-
-        <div className="panel border border-slate-200 p-4 sm:p-5">
-          <p className="mb-4 text-xs font-mono font-semibold tracking-wide text-slate-500">출석 카메라</p>
-          <CheckinCapturePanel
-            onFrame={handleFrame}
-            statusMessage={statusMessage}
-            statusTone={statusTone}
-          />
-        </div>
       </section>
+      <CheckinCapturePanel onFrame={handleFrame} statusMessage={statusMessage} statusTone={statusTone} />
     </main>
   );
 }

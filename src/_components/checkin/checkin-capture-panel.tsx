@@ -6,9 +6,10 @@ type Props = {
   onFrame: (imageDataUrl: string) => void;
   statusMessage: string | null;
   statusTone: "loading" | "success" | "error" | "warning";
+  compact?: boolean;
 };
 
-export function CheckinCapturePanel({ onFrame, statusMessage, statusTone }: Props) {
+export function CheckinCapturePanel({ onFrame, statusMessage, statusTone, compact = false }: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<number | null>(null);
@@ -26,26 +27,70 @@ export function CheckinCapturePanel({ onFrame, statusMessage, statusTone }: Prop
         return;
       }
 
+      const sourceWidth = video.videoWidth;
+      const sourceHeight = video.videoHeight;
+      const targetAspect = 3 / 4; // mobile-like portrait ratio
+      const sourceAspect = sourceWidth / sourceHeight;
+
+      let cropWidth = sourceWidth;
+      let cropHeight = sourceHeight;
+      if (sourceAspect > targetAspect) {
+        cropWidth = Math.floor(sourceHeight * targetAspect);
+      } else {
+        cropHeight = Math.floor(sourceWidth / targetAspect);
+      }
+
+      const cropX = Math.floor((sourceWidth - cropWidth) / 2);
+      const cropY = Math.floor((sourceHeight - cropHeight) / 2);
+
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
 
       const context = canvas.getContext("2d");
       if (!context) {
         return;
       }
 
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+      context.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
       onFrameRef.current(dataUrl);
     };
 
     const startCamera = async () => {
+      if (typeof window !== "undefined" && !window.isSecureContext) {
+        setCameraError("카메라 권한은 HTTPS에서만 동작합니다. 로컬 테스트는 HTTPS 주소로 접속해 주세요.");
+        return;
+      }
+
+      if (
+        typeof navigator === "undefined" ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getUserMedia !== "function"
+      ) {
+        setCameraError("현재 브라우저에서는 카메라를 지원하지 않습니다. Safari 또는 Chrome에서 열어 주세요.");
+        return;
+      }
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" },
-          audio: false,
-        });
+        let stream: MediaStream;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: "user",
+              width: { ideal: 720 },
+              height: { ideal: 960 },
+              aspectRatio: { ideal: 3 / 4 },
+              frameRate: { ideal: 24, max: 30 },
+            },
+            audio: false,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" },
+            audio: false,
+          });
+        }
 
         streamRef.current = stream;
         if (videoRef.current) {
@@ -71,41 +116,69 @@ export function CheckinCapturePanel({ onFrame, statusMessage, statusTone }: Prop
   }, []);
 
   return (
-    <section className="rounded-2xl border border-emerald-200 bg-gradient-to-b from-emerald-50 to-cyan-50 p-5">
-      <div className="rounded-xl border border-cyan-200 bg-black p-2">
+    <section
+      className={
+        compact
+          ? "h-dvh w-full bg-black"
+          : "rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+      }
+    >
+      <div
+        className={
+          compact
+            ? "h-full w-full bg-black"
+            : "rounded-2xl border border-slate-900 bg-black p-2 shadow-[0_14px_34px_rgba(15,23,42,0.16)]"
+        }
+      >
         <div className="relative overflow-hidden rounded-lg">
           <video
             ref={videoRef}
             autoPlay
             muted
             playsInline
-            className="h-[56vh] min-h-[360px] w-full rounded-lg object-cover sm:h-[62vh] sm:min-h-[440px] lg:h-[68vh] lg:min-h-[520px]"
+            className={
+              compact
+                ? "h-dvh w-full object-cover"
+                : "h-[54vh] min-h-[360px] w-full rounded-lg object-cover sm:h-[60vh] sm:min-h-[430px] lg:h-[64vh] lg:min-h-[500px]"
+            }
           />
           {statusMessage && (
             <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
               <span
                 className={`rounded-full px-4 py-2 text-xs font-semibold sm:text-sm ${
                   statusTone === "success"
-                    ? "bg-emerald-600/90 text-white"
+                    ? "bg-emerald-600/95 text-white"
                     : statusTone === "error"
-                      ? "bg-rose-600/90 text-white"
+                      ? "bg-rose-600/95 text-white"
                       : statusTone === "warning"
                         ? "bg-amber-400/95 text-slate-900"
-                        : "bg-cyan-950/80 text-cyan-50"
+                        : "bg-slate-900/90 text-slate-100"
                 }`}
               >
                 {statusMessage}
               </span>
             </div>
           )}
+          {cameraError && (
+            <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-3">
+              <span className="rounded-full bg-rose-600/90 px-4 py-2 text-xs font-semibold text-white sm:text-sm">
+                {cameraError}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
-      <p className="mt-3 text-sm text-slate-700">
-        카메라를 정면으로 바라봐 주세요. 출석은 자동으로 처리됩니다.
-      </p>
+      {!compact && (
+        <div className="mt-4 grid gap-2">
+          <p className="text-sm font-semibold text-slate-900">자동 출석 안내</p>
+          <p className="text-sm text-slate-600">
+            카메라 정면을 바라보고 1~2초 정지해 주세요. 인증 성공 시 즉시 출석 처리됩니다.
+          </p>
+        </div>
+      )}
 
-      {cameraError && (
+      {cameraError && !compact && (
         <p className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {cameraError}
         </p>

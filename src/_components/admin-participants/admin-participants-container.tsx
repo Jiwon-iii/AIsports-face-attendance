@@ -9,7 +9,7 @@ import { useFaceProfiles } from "@/_hooks/use-face-profiles";
 import { ParticipantItem, useParticipants } from "@/_hooks/use-participants";
 import { useRegisterUser } from "@/_hooks/use-register-user";
 
-const MAX_SAMPLES = 1;
+const MAX_SAMPLES = 3;
 const ADMIN_REFRESH_INTERVAL_MS = 3000;
 
 type SelectedSample = {

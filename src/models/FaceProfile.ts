@@ -52,8 +52,8 @@ const faceProfileSchema = new Schema<FaceProfileDocument>(
       type: [sampleSchema],
       default: [],
       validate: {
-        validator: (value: FaceSample[]) => value.length <= 1,
-        message: "samples can include only one item.",
+        validator: (value: FaceSample[]) => value.length <= 3,
+        message: "samples can include up to three items.",
       },
     },
     embeddings: {
@@ -77,13 +77,12 @@ const faceProfileSchema = new Schema<FaceProfileDocument>(
   },
 );
 
-faceProfileSchema.pre("validate", function onValidate(next) {
+faceProfileSchema.pre("validate", function onValidate() {
   const hasSamples = Array.isArray(this.samples) && this.samples.length > 0;
   const hasEmbeddings = Array.isArray(this.embeddings) && this.embeddings.length > 0;
   if (!hasSamples && !hasEmbeddings) {
     this.invalidate("samples", "samples or embeddings is required.");
   }
-  next();
 });
 
 export const FaceProfileModel: Model<FaceProfileDocument> =
