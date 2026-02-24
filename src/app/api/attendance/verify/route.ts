@@ -52,6 +52,7 @@ export async function POST(request: Request) {
         hasFace: input.hasFace,
         capturedAt: new Date().toISOString(),
         recordSaved: false,
+        alreadyAttended: false,
       });
 
     let recognizeResult;
@@ -114,6 +115,37 @@ export async function POST(request: Request) {
         hasFace: recognizeResult.hasFace,
         capturedAt: new Date().toISOString(),
         recordSaved: false,
+        alreadyAttended: false,
+      });
+    }
+
+    const existingAttendance =
+      parsed.data.checkType === "IN"
+        ? await AttendanceRecordModel.findOne({
+            userId: predictedUserId,
+            checkType: "IN",
+            status: "SUCCESS",
+          })
+            .sort({ capturedAt: -1 })
+            .lean()
+        : null;
+
+    if (existingAttendance) {
+      return jsonSuccess({
+        id: existingAttendance._id.toString(),
+        userId: existingAttendance.userId,
+        userName,
+        status: existingAttendance.status,
+        checkType: existingAttendance.checkType,
+        matchedScore: matchedScore ?? null,
+        secondMatchedScore,
+        predictedUserId,
+        threshold,
+        margin,
+        hasFace: recognizeResult.hasFace,
+        capturedAt: existingAttendance.capturedAt.toISOString(),
+        recordSaved: false,
+        alreadyAttended: true,
       });
     }
 
@@ -141,6 +173,7 @@ export async function POST(request: Request) {
       hasFace: recognizeResult.hasFace,
       capturedAt: saved.capturedAt.toISOString(),
       recordSaved: true,
+      alreadyAttended: false,
     });
   } catch (error) {
     console.error("[POST /api/attendance/verify]", error);

@@ -1,6 +1,7 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, MouseEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { RegisteredFaceProfiles } from "@/_components/admin-faces/registered-face-profiles";
 import { StateBanner } from "@/_components/common/state-banner";
 import { fetchJson } from "@/_handlers/http-handler";
@@ -15,6 +16,7 @@ const ADMIN_REFRESH_INTERVAL_MS = 3000;
 type SelectedSample = {
   imageDataUrl: string;
   source: "upload";
+  fileName: string;
 };
 
 function normalizeGenderText(gender?: "MALE" | "FEMALE") {
@@ -60,6 +62,18 @@ export function AdminParticipantsContainer() {
     () => participantsHook.data.find((participant) => participant.userId === selectedUserId) ?? null,
     [participantsHook.data, selectedUserId],
   );
+  const isEditPristine = useMemo(() => {
+    if (!isEditMode || !selectedParticipant) {
+      return false;
+    }
+
+    const isNameSame = name.trim() === selectedParticipant.name;
+    const isGenderSame = gender === (selectedParticipant.gender ?? "MALE");
+    const isAgeSame = age.trim() === String(selectedParticipant.age ?? "");
+    const isNoNewSample = selectedSamples.length === 0;
+
+    return isNameSame && isGenderSame && isAgeSame && isNoNewSample;
+  }, [age, gender, isEditMode, name, selectedParticipant, selectedSamples.length]);
 
   useEffect(() => {
     void refetchParticipants({ silent: true });
@@ -105,7 +119,11 @@ export function AdminParticipantsContainer() {
 
     try {
       const urls = await Promise.all(picked.map((file) => fileToDataUrl(file)));
-      const next = urls.map((imageDataUrl) => ({ imageDataUrl, source: "upload" as const }));
+      const next = urls.map((imageDataUrl, index) => ({
+        imageDataUrl,
+        source: "upload" as const,
+        fileName: picked[index]?.name ?? `sample-${index + 1}.jpg`,
+      }));
       setSelectedSamples((prev) => [...prev, ...next]);
     } catch {
       setLocalError("이미지 처리 중 오류가 발생했습니다.");
@@ -259,10 +277,31 @@ export function AdminParticipantsContainer() {
     }
   };
 
+  const handleParticipantsBlankClick = (event: MouseEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (!isEditPristine) {
+      return;
+    }
+    resetForm();
+    setSelectedUserId("");
+    setLocalError(null);
+    setSuccessMessage(null);
+  };
+
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-8 sm:px-6 md:px-8">
       <section className="panel p-5 sm:p-8 md:p-10">
-        <h1 className="mb-4 text-2xl font-bold text-slate-900 sm:text-3xl">참가자 관리</h1>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">참가자 관리</h1>
+          <Link
+            href="/"
+            className="ui-btn-ghost inline-flex min-h-10 items-center justify-center px-4 text-sm"
+          >
+            처음 화면으로
+          </Link>
+        </div>
         <p className="mb-6 text-sm leading-6 text-slate-700 sm:text-base">
           참가자 정보를 등록, 조회, 수정, 삭제할 수 있습니다.
         </p>
@@ -323,7 +362,9 @@ export function AdminParticipantsContainer() {
               이 영역을 클릭해 파일을 선택하세요. JPG/PNG, 최대 {MAX_SAMPLES}장
             </span>
             <span className="inline-flex w-fit rounded-full border border-slate-300 bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">
-              클릭하여 파일 선택
+              {selectedSamples.length > 0
+                ? `선택됨: ${selectedSamples.map((sample) => sample.fileName).join(", ")}`
+                : "클릭하여 파일 선택"}
             </span>
             <input
               type="file"
@@ -362,7 +403,10 @@ export function AdminParticipantsContainer() {
           </div>
         </form>
 
-        <section className="mt-8 rounded-xl border border-slate-200 p-4 sm:p-5">
+        <section
+          className="mt-8 rounded-xl border border-slate-200 p-4 sm:p-5"
+          onClick={handleParticipantsBlankClick}
+        >
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-semibold text-slate-900">참가자 목록</h2>
             <button

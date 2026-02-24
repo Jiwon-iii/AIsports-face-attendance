@@ -26,6 +26,7 @@ export type VerifyResult = {
   hasFace: boolean;
   capturedAt: string;
   recordSaved: boolean;
+  alreadyAttended?: boolean;
 };
 
 export function useAttendanceVerify() {

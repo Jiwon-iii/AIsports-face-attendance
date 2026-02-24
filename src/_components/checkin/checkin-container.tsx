@@ -134,6 +134,15 @@ export function CheckinContainer() {
               expectedUserId: result.userId,
             });
 
+            if (saved.status === "SUCCESS" && saved.alreadyAttended) {
+              const displayName = saved.userName ?? saved.userId ?? "참가자";
+              setSuccessMessage(`이미 ${displayName}님은 출석을 완료하였습니다.`);
+              setPendingMessage(null);
+              coolDownUntilRef.current = Date.now() + SUCCESS_COOLDOWN_MS;
+              matchHistoryRef.current = [];
+              return;
+            }
+
             if (saved.status === "SUCCESS" && saved.recordSaved) {
               const displayName = saved.userName ?? saved.userId ?? "참가자";
               setSuccessMessage(`${displayName}님 출석 인증되었습니다.`);
