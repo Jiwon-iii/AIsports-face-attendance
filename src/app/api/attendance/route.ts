@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { connectToDatabase } from "@/lib/db";
-import { jsonError, jsonSuccess } from "@/lib/api-response";
+import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { connectToDatabase } from "@/_lib/db";
+import { jsonError, jsonSuccess } from "@/_lib/api-response";
 import {
   ATTENDANCE_STATUSES,
   AttendanceRecordModel,
@@ -24,9 +25,12 @@ const listAttendanceSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    if (!(await isAdminAuthenticated())) {
+      return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+
     const body = await request.json();
     const parsed = createAttendanceSchema.safeParse(body);
-
     if (!parsed.success) {
       return jsonError("BAD_REQUEST", "입력값이 올바르지 않습니다.", 400);
     }
@@ -59,12 +63,15 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   try {
+    if (!(await isAdminAuthenticated())) {
+      return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+
     const url = new URL(request.url);
     const parsed = listAttendanceSchema.safeParse({
       userId: url.searchParams.get("userId") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
     });
-
     if (!parsed.success) {
       return jsonError("BAD_REQUEST", "조회 파라미터가 올바르지 않습니다.", 400);
     }

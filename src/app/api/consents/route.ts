@@ -1,6 +1,7 @@
 import { z } from "zod";
-import { connectToDatabase } from "@/lib/db";
-import { jsonError, jsonSuccess } from "@/lib/api-response";
+import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { connectToDatabase } from "@/_lib/db";
+import { jsonError, jsonSuccess } from "@/_lib/api-response";
 import { ConsentModel } from "@/models/Consent";
 
 const createConsentSchema = z.object({
@@ -11,9 +12,12 @@ const createConsentSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    if (!(await isAdminAuthenticated())) {
+      return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+
     const body = await request.json();
     const parsed = createConsentSchema.safeParse(body);
-
     if (!parsed.success) {
       return jsonError("BAD_REQUEST", "입력값이 올바르지 않습니다.", 400);
     }
@@ -40,9 +44,8 @@ export async function POST(request: Request) {
 
     const mongoError = error as { code?: number };
     if (mongoError.code === 11000) {
-      return jsonError("CONFLICT", "이미 동의가 저장되어 있습니다.", 409);
+      return jsonError("CONFLICT", "이미 동의가 등록되어 있습니다.", 409);
     }
-
     return jsonError("INTERNAL_SERVER_ERROR", "동의 저장에 실패했습니다.", 500);
   }
 }

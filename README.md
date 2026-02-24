@@ -15,11 +15,16 @@
 - `등록(/register)`: 사용자/동의 등록 UI
 - `체크인(/checkin)`: 카메라 인증 UI
 - `관리(/admin)`: 출석 로그 확인 UI
+- `얼굴관리(/admin/faces)`: 관리자 얼굴 샘플 등록/조회/삭제 UI
 - API 기본 구현:
   - `POST /api/users`
   - `POST /api/consents`
   - `POST /api/attendance`
   - `GET /api/attendance`
+  - `POST /api/attendance/verify`
+  - `POST /api/face-profiles`
+  - `GET /api/face-profiles`
+  - `DELETE /api/face-profiles/:id`
 
 실제 얼굴 매칭 엔진 연결과 운영용 인증/인가는 다음 단계입니다.
 
@@ -68,9 +73,12 @@
 - `src/app/register/page.tsx`
 - `src/app/checkin/page.tsx`
 - `src/app/admin/page.tsx`
+- `src/app/admin/faces/page.tsx`
 - `src/app/api/users/route.ts`
 - `src/app/api/consents/route.ts`
 - `src/app/api/attendance/route.ts`
+- `src/app/api/face-profiles/route.ts`
+- `src/app/api/face-profiles/[id]/route.ts`
 
 ## 6. 환경 변수
 
@@ -79,6 +87,10 @@
 ```bash
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB_NAME=ai_face_attendance
+COMPREFACE_SERVER=http://localhost
+COMPREFACE_PORT=8000
+COMPREFACE_RECOGNITION_API_KEY=your_compreface_recognition_api_key
+FACE_MATCH_THRESHOLD=0.82
 ```
 
 샘플은 `.env.example` 파일을 참고합니다.

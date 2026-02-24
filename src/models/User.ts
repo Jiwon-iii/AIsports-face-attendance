@@ -1,9 +1,13 @@
-import { Model, Schema, models, model } from "mongoose";
+import { Model, Schema, model, models } from "mongoose";
+
+export const USER_GENDERS = ["MALE", "FEMALE"] as const;
+export type UserGender = (typeof USER_GENDERS)[number];
 
 export type UserDocument = {
   userId: string;
   name: string;
-  email?: string;
+  gender: UserGender;
+  age: number;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
@@ -22,13 +26,18 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       required: true,
       trim: true,
+      maxlength: 100,
     },
-    email: {
+    gender: {
       type: String,
-      lowercase: true,
-      trim: true,
-      sparse: true,
-      unique: true,
+      enum: USER_GENDERS,
+      required: true,
+    },
+    age: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 120,
     },
     isActive: {
       type: Boolean,
@@ -42,5 +51,4 @@ const userSchema = new Schema<UserDocument>(
   },
 );
 
-export const UserModel: Model<UserDocument> =
-  models.User || model<UserDocument>("User", userSchema);
+export const UserModel: Model<UserDocument> = models.User || model<UserDocument>("User", userSchema);
