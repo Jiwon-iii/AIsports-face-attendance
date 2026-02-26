@@ -5,6 +5,7 @@ type ApiErrorCode =
   | "UNAUTHORIZED"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "TOO_MANY_REQUESTS"
   | "INTERNAL_SERVER_ERROR";
 
 export function jsonSuccess<T>(data: T, status = 200) {

@@ -1,4 +1,5 @@
 import { Model, Schema, model, models } from "mongoose";
+import { PARTICIPANT_NUMBER_REGEX } from "@/_lib/participant-number";
 
 export const USER_GENDERS = ["MALE", "FEMALE"] as const;
 export type UserGender = (typeof USER_GENDERS)[number];
@@ -21,6 +22,7 @@ const userSchema = new Schema<UserDocument>(
       unique: true,
       trim: true,
       index: true,
+      match: PARTICIPANT_NUMBER_REGEX,
     },
     name: {
       type: String,

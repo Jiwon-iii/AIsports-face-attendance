@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { isAdminAuthenticated, isAdminCsrfTokenValid } from "@/_lib/admin-auth";
 import { connectToDatabase } from "@/_lib/db";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
+import { PARTICIPANT_NUMBER_REGEX } from "@/_lib/participant-number";
 import { ConsentModel } from "@/models/Consent";
 
 const createConsentSchema = z.object({
-  userId: z.string().min(1).max(100),
+  userId: z.string().min(1).max(100).regex(PARTICIPANT_NUMBER_REGEX),
   version: z.string().min(1).max(50),
   agreedAt: z.string().datetime().optional(),
 });
@@ -14,6 +15,9 @@ export async function POST(request: Request) {
   try {
     if (!(await isAdminAuthenticated())) {
       return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+    if (!(await isAdminCsrfTokenValid(request))) {
+      return jsonError("UNAUTHORIZED", "CSRF 검증에 실패했습니다.", 403);
     }
 
     const body = await request.json();

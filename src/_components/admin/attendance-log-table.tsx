@@ -10,7 +10,7 @@ export function AttendanceLogTable({ rows }: Props) {
       <table className="w-full min-w-[620px] border-collapse text-sm">
         <thead className="bg-slate-50 text-left text-slate-700">
           <tr>
-            <th className="px-4 py-3">사용자 ID</th>
+            <th className="px-4 py-3">참가자 번호</th>
             <th className="px-4 py-3">구분</th>
             <th className="px-4 py-3">상태</th>
             <th className="px-4 py-3">시간</th>

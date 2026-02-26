@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { isAdminAuthenticated, isAdminCsrfTokenValid } from "@/_lib/admin-auth";
 import { connectToDatabase } from "@/_lib/db";
 import { deleteFaceSubjectFromEngine } from "@/_lib/face-engine";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
+import { PARTICIPANT_NUMBER_REGEX } from "@/_lib/participant-number";
 import { AttendanceRecordModel } from "@/models/AttendanceRecord";
 import { ConsentModel } from "@/models/Consent";
 import { FaceProfileModel } from "@/models/FaceProfile";
@@ -22,9 +23,15 @@ export async function PATCH(
     if (!(await isAdminAuthenticated())) {
       return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
     }
+    if (!(await isAdminCsrfTokenValid(request))) {
+      return jsonError("UNAUTHORIZED", "CSRF 검증에 실패했습니다.", 403);
+    }
 
     const { userId } = await params;
     const targetUserId = decodeURIComponent(userId);
+    if (!PARTICIPANT_NUMBER_REGEX.test(targetUserId)) {
+      return jsonError("BAD_REQUEST", "참가자 번호 형식이 올바르지 않습니다.", 400);
+    }
 
     const body = await request.json();
     const parsed = updateUserSchema.safeParse(body);
@@ -66,16 +73,22 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ userId: string }> },
 ) {
   try {
     if (!(await isAdminAuthenticated())) {
       return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
     }
+    if (!(await isAdminCsrfTokenValid(request))) {
+      return jsonError("UNAUTHORIZED", "CSRF 검증에 실패했습니다.", 403);
+    }
 
     const { userId } = await params;
     const targetUserId = decodeURIComponent(userId);
+    if (!PARTICIPANT_NUMBER_REGEX.test(targetUserId)) {
+      return jsonError("BAD_REQUEST", "참가자 번호 형식이 올바르지 않습니다.", 400);
+    }
 
     await connectToDatabase();
 

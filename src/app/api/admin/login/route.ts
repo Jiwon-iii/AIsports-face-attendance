@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
-import { ADMIN_AUTH_COOKIE_NAME } from "@/_lib/admin-auth";
+import { ADMIN_AUTH_COOKIE_NAME, ADMIN_CSRF_COOKIE_NAME, createAdminCsrfToken } from "@/_lib/admin-auth";
+import {
+  clearAdminLoginFailures,
+  isAdminLoginLocked,
+  registerAdminLoginFailure,
+  resolveClientIp,
+} from "@/_lib/admin-login-guard";
+import { createAdminSession, getAdminSessionMaxAgeSeconds } from "@/_lib/admin-session";
 import {
   hashAdminPassword,
   isHashedAdminPassword,
@@ -21,38 +28,93 @@ export async function POST(request: Request) {
       return jsonError("BAD_REQUEST", "아이디 또는 비밀번호 형식이 올바르지 않습니다.", 400);
     }
 
+    const loginId = parsed.data.id.trim();
+    const clientIp = resolveClientIp(request);
+    const lockInfo = await isAdminLoginLocked(loginId, clientIp);
+    if (lockInfo.locked) {
+      const response = jsonError(
+        "UNAUTHORIZED",
+        "로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.",
+        429,
+      );
+      if (lockInfo.retryAfterSec) {
+        response.headers.set("Retry-After", String(lockInfo.retryAfterSec));
+      }
+      return response;
+    }
+
     await connectToDatabase();
 
-    const account = await AdminAccountModel.findOne({ loginId: parsed.data.id.trim() });
+    const account = await AdminAccountModel.findOne({ loginId });
     if (!account) {
+      await registerAdminLoginFailure(loginId, clientIp);
+      const updatedLock = await isAdminLoginLocked(loginId, clientIp);
+      if (updatedLock.locked) {
+        const response = jsonError(
+          "UNAUTHORIZED",
+          "로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.",
+          429,
+        );
+        if (updatedLock.retryAfterSec) {
+          response.headers.set("Retry-After", String(updatedLock.retryAfterSec));
+        }
+        return response;
+      }
       return jsonError("BAD_REQUEST", "아이디 또는 비밀번호가 올바르지 않습니다.", 401);
     }
 
     const rawPassword = parsed.data.password;
     const storedPassword = account.password;
-
-    const isAuthenticated = isHashedAdminPassword(storedPassword)
-      ? verifyAdminPassword(rawPassword, storedPassword)
-      : storedPassword === rawPassword;
+    const isLegacyPlainPassword = !isHashedAdminPassword(storedPassword);
+    const isAuthenticated = isLegacyPlainPassword
+      ? storedPassword === rawPassword
+      : verifyAdminPassword(rawPassword, storedPassword);
 
     if (!isAuthenticated) {
+      await registerAdminLoginFailure(loginId, clientIp);
+      const updatedLock = await isAdminLoginLocked(loginId, clientIp);
+      if (updatedLock.locked) {
+        const response = jsonError(
+          "UNAUTHORIZED",
+          "로그인 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.",
+          429,
+        );
+        if (updatedLock.retryAfterSec) {
+          response.headers.set("Retry-After", String(updatedLock.retryAfterSec));
+        }
+        return response;
+      }
       return jsonError("BAD_REQUEST", "아이디 또는 비밀번호가 올바르지 않습니다.", 401);
     }
 
-    if (!isHashedAdminPassword(storedPassword)) {
+    if (isLegacyPlainPassword) {
       account.password = hashAdminPassword(rawPassword);
       await account.save();
+      console.warn(`[POST /api/admin/login] migrated legacy plain password for loginId=${loginId}`);
     }
 
+    await clearAdminLoginFailures(loginId, clientIp);
+
+    const session = await createAdminSession(account.loginId);
+    const csrfToken = createAdminCsrfToken();
     const response = jsonSuccess({ ok: true });
     response.cookies.set({
       name: ADMIN_AUTH_COOKIE_NAME,
-      value: "1",
+      value: session.token,
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      maxAge: 60 * 60 * 8,
+      maxAge: getAdminSessionMaxAgeSeconds(),
+    });
+    response.cookies.set({
+      name: ADMIN_CSRF_COOKIE_NAME,
+      value: csrfToken,
+      httpOnly: false,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: getAdminSessionMaxAgeSeconds(),
     });
     return response;
   } catch (error) {

@@ -28,7 +28,7 @@ export function RegisteredFaceProfiles({
             <article key={item.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="mb-3 flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-slate-900">사용자 ID: {item.userId}</p>
+                  <p className="text-sm font-semibold text-slate-900">참가자 번호: {item.userId}</p>
                   <p className="text-xs text-slate-600">
                     샘플 {item.sampleCount}개 / 마지막 수정 {new Date(item.updatedAt).toLocaleString()}
                   </p>

@@ -22,12 +22,14 @@ export function RegisterFormFields({
   return (
     <>
       <label className="grid gap-2">
-        <span className="text-sm font-semibold text-slate-800">사용자 ID</span>
+        <span className="text-sm font-semibold text-slate-800">참가자 번호</span>
         <input
           className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none ring-sky-200 transition focus:ring"
           value={userId}
           onChange={(event) => onChangeUserId(event.target.value)}
-          placeholder="예: user-0001"
+          placeholder="예: 10001234"
+          inputMode="numeric"
+          pattern="[0-9]*"
           autoComplete="off"
         />
       </label>

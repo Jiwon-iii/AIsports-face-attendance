@@ -1,16 +1,19 @@
-import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { isAdminAuthenticated, isAdminCsrfTokenValid } from "@/_lib/admin-auth";
 import { connectToDatabase } from "@/_lib/db";
 import { deleteFaceSubjectFromEngine } from "@/_lib/face-engine";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
 import { FaceProfileModel } from "@/models/FaceProfile";
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     if (!(await isAdminAuthenticated())) {
       return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+    if (!(await isAdminCsrfTokenValid(request))) {
+      return jsonError("UNAUTHORIZED", "CSRF 검증에 실패했습니다.", 403);
     }
 
     const { id } = await params;

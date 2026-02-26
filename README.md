@@ -1,121 +1,170 @@
 # AI Face Attendance
 
-안면인식 기반 출석 인증 웹앱입니다.  
-이 프로젝트는 실무 확장을 염두에 둔 구조로 시작하되, 개인 포트폴리오에서도 바로 설명 가능한 보편적인 출석 시나리오를 목표로 합니다.
+Next.js(App Router) + TypeScript 기반 안면인식 출석 시스템입니다.  
+체크인 화면은 자동 얼굴 인증 중심으로 동작하고, 등록/관리 기능은 관리자 화면에서 처리합니다.
 
-## 1. 프로젝트 목표
+## 1. 주요 기능
 
-- 얼굴 등록, 현장 체크인, 관리자 확인까지 이어지는 출석 플로우 구현
-- 대리출석 방지를 위한 본인 인증 흐름(추후 liveness 포함) 설계
-- 실무 전환 시 멀티 조직/대회 도메인으로 확장 가능한 데이터 구조 유지
+- 자동 얼굴 인증 체크인 (`/`, `/checkin`)
+  - 카메라 프레임을 주기적으로 캡처해 `/api/attendance/verify` 호출
+  - 2회 연속 매칭 시 출석 저장
+  - 이미 출석(`SUCCESS` 또는 `MANUAL`) 처리된 참가자는 중복 저장 방지
+- 체크인 화면 수동 출석 패널(모바일/태블릿 키오스크)
+  - 참가자 번호 입력 시 등록 사진/이름 조회
+  - `"OOO님이 맞습니까?"` 확인 후 `예/아니오`로 수동 출석 확정
+- 관리자 인증 (`/admin/login`)
+  - 세션 쿠키 + CSRF 토큰 기반 보호
+  - 로그인 실패 횟수 제한 및 잠금(429)
+- 참가자 관리 (`/admin`, `/admin/participants`)
+  - 참가자 생성/수정/삭제
+  - 출석 취소(개별), 출석 초기화(전체)
+  - 동의(Consent) + 얼굴 샘플(최대 3장) 등록
+- 얼굴 프로필 관리 (`/admin/faces`)
+  - 참가자 번호 기준 얼굴 샘플 등록/조회/삭제
 
-## 2. 현재 범위 (MVP Stage-1)
+## 2. 기술 스택
 
-- `홈`: 기능 진입 허브
-- `등록(/register)`: 사용자/동의 등록 UI
-- `체크인(/checkin)`: 카메라 인증 UI
-- `관리(/admin)`: 출석 로그 확인 UI
-- `얼굴관리(/admin/faces)`: 관리자 얼굴 샘플 등록/조회/삭제 UI
-- API 기본 구현:
+- Next.js 16 (App Router)
+- TypeScript
+- Tailwind CSS v4
+- MongoDB + Mongoose
+- Zod
+- CompreFace SDK (`@exadel/compreface-js-sdk`)
+
+## 3. 프로젝트 구조
+
+```txt
+src/
+  _components/    UI 컴포넌트
+  _hooks/         클라이언트 데이터 훅
+  _handlers/      공통 클라이언트 유틸(fetch, image 처리)
+  _lib/           DB/인증/응답/가드/얼굴엔진 공통 로직
+  models/         Mongoose 모델
+  app/
+    api/          API 라우트
+    admin/        관리자 페이지
+    checkin/      체크인 페이지
+    register/     등록 안내 페이지
+```
+
+## 4. 데이터 모델
+
+- `users`
+  - `userId(참가자 번호, 숫자 전용)`, `name`, `gender(MALE|FEMALE)`, `age`, `isActive`
+- `faceProfiles`
+  - `userId(unique, 참가자 번호)`, `samples[]`(최대 3), `embeddings?`, `qualityScore?`
+- `attendanceRecords`
+  - `userId(참가자 번호)`, `checkType(IN|OUT)`, `status(SUCCESS|FAILED|MANUAL)`, `matchedScore?`, `livenessScore?`, `capturedAt`
+- `consents`
+  - `userId(참가자 번호)`, `version`, `agreedAt`, `revokedAt?`
+- `adminAccounts`
+  - `loginId`, `password(해시 저장)`
+
+## 5. API 요약
+
+모든 응답은 `{ success, data | error }` 형태입니다.
+
+- Admin 인증
+  - `POST /api/admin/login`
+  - `POST /api/admin/logout`
+- 사용자
   - `POST /api/users`
+  - `GET /api/users`
+  - `PATCH /api/users/:userId`
+  - `DELETE /api/users/:userId`
+  - `GET /api/users/manual-candidate?userId=...`
+- 동의
   - `POST /api/consents`
-  - `POST /api/attendance`
-  - `GET /api/attendance`
-  - `POST /api/attendance/verify`
+- 얼굴 프로필
   - `POST /api/face-profiles`
   - `GET /api/face-profiles`
   - `DELETE /api/face-profiles/:id`
+- 출석
+  - `POST /api/attendance` (관리자 수동 저장용)
+  - `GET /api/attendance`
+  - `POST /api/attendance/verify` (체크인 얼굴 인증)
+  - `POST /api/attendance/reset` (전체 초기화)
+  - `DELETE /api/attendance/:userId` (개별 초기화)
 
-실제 얼굴 매칭 엔진 연결과 운영용 인증/인가는 다음 단계입니다.
-
-## 3. 기술 스택
-
-- Next.js (App Router)
-- TypeScript
-- Tailwind CSS v4
-- ESLint
-- MongoDB + Mongoose
-- Zod (API 입력 검증)
-
-## 4. 데이터 모델 초안 (MongoDB)
-
-### `users`
-- `userId` (unique, string UUID)
-- `name`
-- `email` (optional)
-- `isActive`
-- `createdAt`, `updatedAt`
-
-### `faceProfiles`
-- `userId`
-- `embeddings` (number[][] 또는 number[])
-- `qualityScore`
-- `createdAt`, `updatedAt`
-
-### `attendanceRecords`
-- `userId`
-- `checkType` (`IN` | `OUT`)
-- `status` (`SUCCESS` | `FAILED` | `MANUAL`)
-- `matchedScore`
-- `livenessScore`
-- `capturedAt`
-- `deviceId`
-
-### `consents`
-- `userId`
-- `version`
-- `agreedAt`
-- `revokedAt`
-
-## 5. 기본 라우트 구조
-
-- `src/app/page.tsx`
-- `src/app/register/page.tsx`
-- `src/app/checkin/page.tsx`
-- `src/app/admin/page.tsx`
-- `src/app/admin/faces/page.tsx`
-- `src/app/api/users/route.ts`
-- `src/app/api/consents/route.ts`
-- `src/app/api/attendance/route.ts`
-- `src/app/api/face-profiles/route.ts`
-- `src/app/api/face-profiles/[id]/route.ts`
+참고:
+- `/api/attendance/verify`는 관리자 쿠키 없이 호출됩니다.
+- 그 외 관리성 API는 관리자 로그인 필요합니다.
 
 ## 6. 환경 변수
 
-`.env.local` 파일을 만들고 아래 값을 설정합니다.
+`.env.local` 파일 생성:
 
 ```bash
 MONGODB_URI=mongodb://localhost:27017
 MONGODB_DB_NAME=ai_face_attendance
+
 COMPREFACE_SERVER=http://localhost
 COMPREFACE_PORT=8000
 COMPREFACE_RECOGNITION_API_KEY=your_compreface_recognition_api_key
-FACE_MATCH_THRESHOLD=0.82
+
+FACE_MATCH_THRESHOLD=0.95
+FACE_MATCH_MARGIN=0.02
+FACE_REQUIRE_LIVENESS=false
+FACE_LIVENESS_THRESHOLD=0.9
+
+ATTENDANCE_VERIFY_MAX_REQUESTS_PER_IP=120
+ATTENDANCE_VERIFY_WINDOW_MINUTES=1
+ATTENDANCE_VERIFY_LOCKOUT_MINUTES=1
+
+ADMIN_AUTH_COOKIE_NAME=admin_auth
+ADMIN_CSRF_COOKIE_NAME=admin_csrf
+NEXT_PUBLIC_ADMIN_CSRF_COOKIE_NAME=admin_csrf
+ADMIN_SESSION_TTL_HOURS=8
+ADMIN_LOGIN_MAX_FAILURES=5
+ADMIN_LOGIN_IP_MAX_FAILURES=10
+ADMIN_LOGIN_WINDOW_MINUTES=15
+ADMIN_LOGIN_LOCKOUT_MINUTES=15
 ```
 
-샘플은 `.env.example` 파일을 참고합니다.
-
-## 7. 개발 로드맵
-
-1. `/register`, `/admin` 화면에 실제 API 연동
-2. `faceProfiles` 등록 API 구현 (`/api/face-profiles`)
-3. 체크인 매칭 로직 + 임계값 설정 컬렉션 도입
-4. liveness(눈깜빡임/헤드턴) 최소 구현
-5. 인증/인가(관리자 권한) 추가
-6. 운영 로그/모니터링 지표 강화
-
-## 8. 실행 방법
+## 7. 실행 방법
 
 ```bash
 npm install
 npm run dev
 ```
 
-브라우저에서 `http://localhost:3000` 접속 후 각 라우트로 이동합니다.
+- 앱 주소: `http://localhost:3000`
 
-## 9. 포트폴리오 관점 포인트
+## 8. 운영 전 체크리스트
 
-- 문제정의: 대회/현장 환경의 빠른 출석 인증
-- 설계: 등록-인증-운영의 E2E 흐름
-- 확장성: 범용 모델 + 도메인 필드 추후 확장 전략
-- 안정성: 실패 처리/수동 처리/로그 전략 반영
+- MongoDB 연결 확인
+- CompreFace 서버/API 키 유효성 확인
+- `adminAccounts` 컬렉션에 관리자 계정 존재 확인
+- HTTPS 환경에서 카메라 권한 테스트
+- `npm run lint` 통과 확인
+
+## 9. 보안 회귀 테스트
+
+- 위치: `tests/security/security-e2e.mjs`
+- 실행:
+
+```bash
+npm run test:security
+```
+
+- 검증 항목:
+  - CSRF 토큰 없이 관리자 변경 요청 시 차단(403)
+  - 로그인 실패 횟수 제한/잠금(429)
+  - 잘못된 관리자 세션으로 `/admin` 접근 시 로그인 리다이렉트
+
+## 10. 참가자 번호 마이그레이션
+
+- 스크립트: `scripts/migrate-participant-numbers.mjs`
+
+```bash
+# 1) 변경 대상 확인 (dry-run)
+npm run migrate:participant-numbers
+
+# 2) 실제 DB 반영
+npm run migrate:participant-numbers -- --apply
+
+# 3) DB 반영 + CompreFace subject 동기화
+npm run migrate:participant-numbers -- --apply --sync-face-engine
+```
+
+- 결과 매핑 파일: `migration-participant-number-map.json`

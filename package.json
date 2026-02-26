@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:security": "node tests/security/security-e2e.mjs",
+    "migrate:participant-numbers": "node scripts/migrate-participant-numbers.mjs"
   },
   "dependencies": {
     "@exadel/compreface-js-sdk": "^1.0.0",

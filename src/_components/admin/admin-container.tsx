@@ -5,6 +5,7 @@ import { AdminNavigation } from "@/_components/admin/admin-navigation";
 import { AttendanceLogTable } from "@/_components/admin/attendance-log-table";
 import { StateBanner } from "@/_components/common/state-banner";
 import { useAttendanceRecords } from "@/_hooks/use-attendance-records";
+import { toDigitsOnly } from "@/_lib/participant-number";
 
 export function AdminContainer() {
   const [searchUserId, setSearchUserId] = useState("");
@@ -33,15 +34,17 @@ export function AdminContainer() {
           출석 운영 대시보드
         </h1>
         <p className="mb-6 max-w-2xl text-sm leading-6 text-slate-700 sm:mb-8 sm:text-base">
-          출석 로그를 조회하고 사용자 ID 기준으로 필터할 수 있습니다.
+          출석 로그를 조회하고 참가자 번호 기준으로 필터할 수 있습니다.
         </p>
 
         <div className="mb-4 flex flex-wrap gap-3">
           <input
             className="min-h-11 min-w-56 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none ring-sky-200 transition focus:ring"
             value={searchUserId}
-            onChange={(event) => setSearchUserId(event.target.value)}
-            placeholder="사용자 ID 필터 (선택)"
+            onChange={(event) => setSearchUserId(toDigitsOnly(event.target.value))}
+            placeholder="참가자 번호 필터 (선택)"
+            inputMode="numeric"
+            pattern="[0-9]*"
             autoComplete="off"
           />
           <button

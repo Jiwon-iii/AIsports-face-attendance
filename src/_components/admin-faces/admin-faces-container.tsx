@@ -7,6 +7,7 @@ import { SelectedSamplesPanel } from "@/_components/admin-faces/selected-samples
 import { StateBanner } from "@/_components/common/state-banner";
 import { fileToDataUrl } from "@/_handlers/image-handler";
 import { useFaceProfiles } from "@/_hooks/use-face-profiles";
+import { toDigitsOnly } from "@/_lib/participant-number";
 
 const MAX_SAMPLES = 3;
 
@@ -63,7 +64,7 @@ export function AdminFacesContainer() {
     setLocalError(null);
 
     if (!userId.trim()) {
-      setLocalError("사용자 ID를 입력해 주세요.");
+      setLocalError("참가자 번호를 입력해 주세요.");
       return;
     }
 
@@ -96,7 +97,7 @@ export function AdminFacesContainer() {
   const handleSearch = async () => {
     setLocalError(null);
     if (!userId.trim()) {
-      setLocalError("조회할 사용자 ID를 입력해 주세요.");
+      setLocalError("조회할 참가자 번호를 입력해 주세요.");
       return;
     }
     await refetch(userId.trim());
@@ -120,12 +121,14 @@ export function AdminFacesContainer() {
         <form onSubmit={handleSubmit} className="grid gap-5 sm:gap-6">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-sm font-semibold text-slate-800">사용자 ID</span>
+              <span className="text-sm font-semibold text-slate-800">참가자 번호</span>
               <input
                 className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none ring-sky-200 transition focus:ring"
                 value={userId}
-                onChange={(event) => setUserId(event.target.value)}
-                placeholder="예: user-0001"
+                onChange={(event) => setUserId(toDigitsOnly(event.target.value))}
+                placeholder="예: 10001234"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 autoComplete="off"
               />
             </label>

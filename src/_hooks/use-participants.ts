@@ -39,7 +39,8 @@ export function useParticipants() {
       const payload = await fetchJson<ParticipantList>("/api/users");
       setData(payload.items);
     } catch (caughtError) {
-      const message = caughtError instanceof Error ? caughtError.message : "참가자 조회에 실패했습니다.";
+      const message =
+        caughtError instanceof Error ? caughtError.message : "참가자 조회에 실패했습니다.";
       setError(message);
       setData([]);
     } finally {
@@ -59,7 +60,8 @@ export function useParticipants() {
         });
         await refetch();
       } catch (caughtError) {
-        const message = caughtError instanceof Error ? caughtError.message : "참가자 삭제에 실패했습니다.";
+        const message =
+          caughtError instanceof Error ? caughtError.message : "참가자 삭제에 실패했습니다.";
         setError(message);
         throw caughtError;
       } finally {
@@ -117,7 +119,9 @@ export function useParticipants() {
         await refetch();
       } catch (caughtError) {
         const message =
-          caughtError instanceof Error ? caughtError.message : "개별 출석 초기화에 실패했습니다.";
+          caughtError instanceof Error
+            ? caughtError.message
+            : "개별 출석 초기화에 실패했습니다.";
         setError(message);
         throw caughtError;
       } finally {

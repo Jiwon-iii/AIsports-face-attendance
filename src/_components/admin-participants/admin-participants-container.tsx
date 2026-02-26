@@ -62,6 +62,7 @@ export function AdminParticipantsContainer() {
     () => participantsHook.data.find((participant) => participant.userId === selectedUserId) ?? null,
     [participantsHook.data, selectedUserId],
   );
+
   const isEditPristine = useMemo(() => {
     if (!isEditMode || !selectedParticipant) {
       return false;
@@ -229,14 +230,14 @@ export function AdminParticipantsContainer() {
           });
           await refetchParticipants();
         } catch {
-          // 롤백 실패는 원본 에러를 우선 노출한다.
+          // 롤백 실패 시 원본 오류를 우선 노출한다.
         }
       }
 
       if (error instanceof Error) {
         setLocalError(error.message);
       } else {
-        setLocalError("저장 중 오류가 발생했습니다.");
+        setLocalError("처리 중 오류가 발생했습니다.");
       }
     }
   };
@@ -260,7 +261,7 @@ export function AdminParticipantsContainer() {
   };
 
   const handleResetAllAttendance = async () => {
-    const ok = window.confirm("전체 참가자 출석 상태를 초기화하시겠습니까?");
+    const ok = window.confirm("전체 참가자의 출석 상태를 초기화하시겠습니까?");
     if (!ok) {
       return;
     }
@@ -356,7 +357,9 @@ export function AdminParticipantsContainer() {
 
           <label className="grid cursor-pointer gap-2 rounded-2xl border border-slate-300 bg-white p-5 transition hover:bg-slate-50">
             <span className="text-sm font-semibold text-slate-900">
-              {isEditMode ? "새 얼굴 이미지 업로드 (선택, 업로드 시 기존 사진 교체)" : "얼굴 이미지 업로드"}
+              {isEditMode
+                ? "얼굴 이미지 업로드(선택, 업로드 시 기존 사진 교체)"
+                : "얼굴 이미지 업로드"}
             </span>
             <span className="text-xs text-slate-600">
               이 영역을 클릭해 파일을 선택하세요. JPG/PNG, 최대 {MAX_SAMPLES}장
@@ -428,7 +431,7 @@ export function AdminParticipantsContainer() {
               <table className="w-full min-w-[620px] border-collapse text-sm">
                 <thead className="bg-slate-50 text-left text-slate-700">
                   <tr>
-                    <th className="px-4 py-3">고유 ID</th>
+                    <th className="px-4 py-3">참가자 번호</th>
                     <th className="px-4 py-3">이름</th>
                     <th className="px-4 py-3">성별</th>
                     <th className="px-4 py-3">나이</th>
@@ -518,7 +521,7 @@ export function AdminParticipantsContainer() {
 
         {selectedParticipant ? (
           <p className="mt-8 text-sm text-slate-700">
-            선택 참가자: {selectedParticipant.name} ({selectedParticipant.userId})
+            선택 참가자: {selectedParticipant.name} (참가자 번호 {selectedParticipant.userId})
           </p>
         ) : (
           <p className="mt-8 text-sm text-slate-600">

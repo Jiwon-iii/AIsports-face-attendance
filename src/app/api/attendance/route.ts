@@ -1,15 +1,17 @@
 import { z } from "zod";
-import { isAdminAuthenticated } from "@/_lib/admin-auth";
+import { isAdminAuthenticated, isAdminCsrfTokenValid } from "@/_lib/admin-auth";
 import { connectToDatabase } from "@/_lib/db";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
+import { PARTICIPANT_NUMBER_REGEX } from "@/_lib/participant-number";
 import {
   ATTENDANCE_STATUSES,
   AttendanceRecordModel,
   CHECK_TYPES,
 } from "@/models/AttendanceRecord";
+import { UserModel } from "@/models/User";
 
 const createAttendanceSchema = z.object({
-  userId: z.string().min(1).max(100),
+  userId: z.string().min(1).max(100).regex(PARTICIPANT_NUMBER_REGEX),
   checkType: z.enum(CHECK_TYPES).default("IN"),
   status: z.enum(ATTENDANCE_STATUSES),
   matchedScore: z.number().min(0).max(1).optional(),
@@ -19,7 +21,7 @@ const createAttendanceSchema = z.object({
 });
 
 const listAttendanceSchema = z.object({
-  userId: z.string().optional(),
+  userId: z.string().regex(PARTICIPANT_NUMBER_REGEX).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 });
 
@@ -27,6 +29,9 @@ export async function POST(request: Request) {
   try {
     if (!(await isAdminAuthenticated())) {
       return jsonError("UNAUTHORIZED", "관리자 로그인이 필요합니다.", 401);
+    }
+    if (!(await isAdminCsrfTokenValid(request))) {
+      return jsonError("UNAUTHORIZED", "CSRF 검증에 실패했습니다.", 403);
     }
 
     const body = await request.json();
@@ -36,6 +41,25 @@ export async function POST(request: Request) {
     }
 
     await connectToDatabase();
+
+    const user = await UserModel.findOne({ userId: parsed.data.userId }).lean();
+    if (!user) {
+      return jsonError("NOT_FOUND", "해당 사용자를 찾을 수 없습니다.", 404);
+    }
+    if (!user.isActive) {
+      return jsonError("BAD_REQUEST", "비활성 사용자입니다. 관리자에게 문의해 주세요.", 400);
+    }
+
+    if (parsed.data.checkType === "IN") {
+      const existingAttendance = await AttendanceRecordModel.findOne({
+        userId: parsed.data.userId,
+        checkType: "IN",
+        status: { $in: ["SUCCESS", "MANUAL"] },
+      }).lean();
+      if (existingAttendance) {
+        return jsonError("CONFLICT", "이미 출석 처리된 사용자입니다.", 409);
+      }
+    }
 
     const created = await AttendanceRecordModel.create({
       ...parsed.data,

@@ -7,14 +7,29 @@ type Props = {
   statusMessage: string | null;
   statusTone: "loading" | "success" | "error" | "warning";
   compact?: boolean;
+  statusAnchor?: "top" | "bottom";
+  statusBottomOffsetPx?: number;
+  statusTextClassName?: string;
+  cameraErrorTextClassName?: string;
 };
 
-export function CheckinCapturePanel({ onFrame, statusMessage, statusTone, compact = false }: Props) {
+export function CheckinCapturePanel({
+  onFrame,
+  statusMessage,
+  statusTone,
+  compact = false,
+  statusAnchor = "bottom",
+  statusBottomOffsetPx = 12,
+  statusTextClassName,
+  cameraErrorTextClassName,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<number | null>(null);
   const onFrameRef = useRef(onFrame);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const statusTypographyClass = statusTextClassName ?? "text-xs sm:text-sm";
+  const cameraErrorTypographyClass = cameraErrorTextClassName ?? "text-xs sm:text-sm";
 
   useEffect(() => {
     onFrameRef.current = onFrame;
@@ -143,9 +158,14 @@ export function CheckinCapturePanel({ onFrame, statusMessage, statusTone, compac
             }
           />
           {statusMessage && (
-            <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
+            <div
+              className={`pointer-events-none absolute inset-x-0 z-30 flex justify-center px-3 ${
+                statusAnchor === "top" ? "top-3" : ""
+              }`}
+              style={statusAnchor === "bottom" ? { bottom: `${statusBottomOffsetPx}px` } : undefined}
+            >
               <span
-                className={`rounded-full px-4 py-2 text-xs font-semibold sm:text-sm ${
+                className={`rounded-full px-4 py-2 font-semibold ${statusTypographyClass} ${
                   statusTone === "success"
                     ? "bg-emerald-600/95 text-white"
                     : statusTone === "error"
@@ -161,7 +181,9 @@ export function CheckinCapturePanel({ onFrame, statusMessage, statusTone, compac
           )}
           {cameraError && (
             <div className="pointer-events-none absolute inset-x-0 top-3 flex justify-center px-3">
-              <span className="rounded-full bg-rose-600/90 px-4 py-2 text-xs font-semibold text-white sm:text-sm">
+              <span
+                className={`rounded-full bg-rose-600/90 px-4 py-2 font-semibold text-white ${cameraErrorTypographyClass}`}
+              >
                 {cameraError}
               </span>
             </div>

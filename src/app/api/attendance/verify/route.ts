@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { checkAttendanceVerifyGuard } from "@/_lib/attendance-verify-guard";
 import { connectToDatabase } from "@/_lib/db";
 import {
   getFaceMatchMargin,
@@ -6,6 +7,7 @@ import {
   recognizeFaceFromImage,
 } from "@/_lib/face-engine";
 import { jsonError, jsonSuccess } from "@/_lib/api-response";
+import { PARTICIPANT_NUMBER_REGEX } from "@/_lib/participant-number";
 import { AttendanceRecordModel } from "@/models/AttendanceRecord";
 import { UserModel } from "@/models/User";
 
@@ -15,11 +17,37 @@ const verifyAttendanceSchema = z.object({
   deviceId: z.string().max(100).optional(),
   livenessScore: z.number().min(0).max(1).optional(),
   saveRecord: z.boolean().default(true),
-  expectedUserId: z.string().max(100).optional(),
+  expectedUserId: z.string().max(100).regex(PARTICIPANT_NUMBER_REGEX).optional(),
 });
+
+function isLivenessRequired() {
+  const raw = process.env.FACE_REQUIRE_LIVENESS;
+  return raw === "1" || raw === "true";
+}
+
+function getLivenessThreshold() {
+  const raw = process.env.FACE_LIVENESS_THRESHOLD;
+  if (!raw) {
+    return 0.9;
+  }
+  const parsed = Number(raw);
+  if (Number.isNaN(parsed) || parsed < 0 || parsed > 1) {
+    throw new Error("FACE_LIVENESS_THRESHOLD must be between 0 and 1.");
+  }
+  return parsed;
+}
 
 export async function POST(request: Request) {
   try {
+    const guard = await checkAttendanceVerifyGuard(request);
+    if (guard.locked) {
+      const response = jsonError("TOO_MANY_REQUESTS", "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.", 429);
+      if (guard.retryAfterSec) {
+        response.headers.set("Retry-After", String(guard.retryAfterSec));
+      }
+      return response;
+    }
+
     const body = await request.json();
     const parsed = verifyAttendanceSchema.safeParse(body);
 
@@ -31,6 +59,8 @@ export async function POST(request: Request) {
 
     const threshold = getFaceMatchThreshold();
     const margin = getFaceMatchMargin();
+    const requireLiveness = isLivenessRequired();
+    const livenessThreshold = getLivenessThreshold();
     const buildFailedResponse = (input: {
       predictedUserId: string | null;
       userName: string | null;
@@ -87,6 +117,9 @@ export async function POST(request: Request) {
       typeof matchedScore === "number" &&
       matchedScore >= threshold &&
       isMarginSatisfied &&
+      (!requireLiveness ||
+        (typeof parsed.data.livenessScore === "number" &&
+          parsed.data.livenessScore >= livenessThreshold)) &&
       Boolean(predictedUser?.isActive) &&
       isExpectedUserMatched;
 
@@ -124,7 +157,7 @@ export async function POST(request: Request) {
         ? await AttendanceRecordModel.findOne({
             userId: predictedUserId,
             checkType: "IN",
-            status: "SUCCESS",
+            status: { $in: ["SUCCESS", "MANUAL"] },
           })
             .sort({ capturedAt: -1 })
             .lean()
